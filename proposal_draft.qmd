@@ -1,0 +1,40 @@
+---
+format: pdf
+editor: visual
+bibliography: project_citations.bib
+---
+
+Andrea Kuhn & Alex Nguyen  
+Stat 6950
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.height = 3, fig.width = 6, fig.align = 'center', message = FALSE, number_sections = FALSE)
+library(alr4)
+library(tidyverse)
+library(ggplot2)
+library(cowplot)
+library(kableExtra)
+library(tidymodels)
+library(patchwork)
+library(MASS)
+library(GGally)
+library(dplyr)
+```
+
+# Data Project
+
+## About the Data
+The data set contains results for the marathon, 50 km race-walk, 20 km race-walk, 10000 m, 5000 m, and 3000 m-steeplechase for major competitions (Commonwealth Games, Diamond League, World Athletics Continental Cup, World Athletics Gold Label Races, Olympic Games, World Athletics Race Walking Team Championships, and World Championships) from 2000-2019. The standing event record and world record were also included for each event. These results were obtained from the official websites and collected between February 2016 and March 2024.\newline\newline
+\noindent
+Additionally, the date, time, and location for each race was obtained from the official website while the longitude and latitude were obtained from www.locationiq.com. Then, weather data (air temperature, dew point, wind speed, and cloud coverage) corresponding to the time at half-way for each race were obtained using the official dataset of the National Oceanic and Atmospheric Administration. In cases where these data were not available, the information was retrieved from widely used meteorology websites. Wind speed was adjusted for height above the ground and air friction coefficient (i.e., large city with tall buildings). Dew point data were converted to relative humidity. For cases where cloud coverage was not available in the National Oceanic and Atmospheric Administration datasets, the cloud coverage (in okta) was computed using relative humidity data based on previous methodology and applying coefficients of 0.25 for low and high as well as 0.5 for middle clouds, as previously suggested. Solar radiation was calculated using the date, time, and coordinates of each race, while accounting for cloud coverage. Thereafter, the Heat Index, Simplified WBGT and WBGT, were calculated using previous methodology [@Mantzios2022].\newline\newline
+\noindent
+The original dataset contained 1258 races ranging from 1936 to 2019 after screening out races at the beginning of the creation due to inconsistencies in community interest and runner participation. For our uses, we will only be considering race-walking, track, and marathon championships races from 2000-2010 and marathon Gold Label Races from 2010-2019. Additionally, since our focus will be only on the top three results (elite athletes) rather than the 25th, 50th, 100th, and 300th place finishers (well-trained runners) we removed several Gold Label Races (marathons) that are historically not attended by elite athletes (Athens, Gold Coast, Ottawa, Philadelphia, etc.). These races were selected by reviewing the results from 2010-2019 and by utilizing personal knowledge and experience. This choice to reduce the original data set was also driven by the necessity to manually compete the data for the remaining Gold Label Races. Because most Gold Label Races (marathons) have a combined male and female start, the original data set did not distinguish between the genders for these races. Therefore, we completed our data set by copying the weather and location values from the male race and then adding the top three female finishers.\newline\newline
+\noindent
+Our final data set has ... races ranging from 2000-2019.
+
+## Proposed Question
+Our question of interest will be how weather variables at the time of the race impact percent deviation of the finishing times for elite athletes from either the standing event record or standing world record. The goal is to explore what weather variables impact performance the greatest. Further, we will potentially break down this relationship across several categories such as gender, race distance, and competition type (because championship style races are typically ran slower due to the focus on placing rather than finishing time).\newline\newline
+\noindent
+Another component we will assess is whether there has been a shift in performance since 2017. We believe 2017 may carry special significance, especially for road races, due to the introduction of "super shoes" (i.e. Nike Vaporflys). 
+
+## References
