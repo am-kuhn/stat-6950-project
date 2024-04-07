@@ -1,0 +1,119 @@
+---
+format: pdf
+editor: visual
+---
+
+Andrea Kuhn & Alex Nguyen \
+Stat 6950
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.height = 3, fig.width = 6, fig.align = 'center', message = FALSE, number_sections = FALSE)
+library(alr4)
+library(tidyverse)
+library(ggplot2)
+library(cowplot)
+library(kableExtra)
+library(tidymodels)
+library(patchwork)
+library(MASS)
+library(GGally)
+library(dplyr)
+library(hms)
+```
+
+# Data Project
+
+## Introduction
+
+
+## Exploratory Data Analysis
+```{r}
+## pull in data and clean
+results = read.csv("race_results.csv", header = TRUE)
+
+## rename columns for easier reading
+colnames(results) = c("competition", "distance", "sex", "host", "country",
+                      "day", "month", "year", "time",
+                      "latitude", "longitude", "NOAA_ID", "station_loc", 
+                      "dist_from_loc", "air_temp", "dew_point", "wind_speed", 
+                      "adj_wind_speed", "rel_hum", "clouds_OKTA", 
+                      "diff_from_req_time", "time_zone", "solar_rad",
+                      "heat_index", "simp_wet_bulb", "wet_bulb",
+                      "world_record", "standing_record", "time_1st", 
+                      "time_2nd", "time_3rd", "time_4th", "time_5th", 
+                      "time_6th", "time_7th", "time_8th", "time_9th", 
+                      "time_10th", "time_avgTop3")
+
+## remove missing values
+weather_missing = which(is.na(results$NOAA_ID) | is.na(results$rel_hum))
+
+results_missing = which(results$world_record == "" | 
+                        results$standing_record == "" | 
+                        results$time_1st == "")
+results = results[-c(weather_missing, results_missing),]
+
+## convert time string to time object
+results$world_record = as_hms(results$world_record)
+results$standing_record = as_hms(results$standing_record)
+results$time_1st = as_hms(results$time_1st)
+results$time_avgTop3 = as_hms(results$time_avgTop3)
+
+## convert time to seconds
+results$world_record_s = as.numeric(results$world_record)
+results$standing_record_s = as.numeric(results$standing_record)
+results$time_1st_s = as.numeric(results$time_1st)
+results$time_avgTop3_s = as.numeric(results$time_avgTop3)
+
+## percent deviation from world and standing record
+results = results %>% 
+  mutate(percent_world_1st = (time_1st_s - world_record_s) / 
+           world_record_s * 100,
+         percent_standing_1st = (time_1st_s - standing_record_s) / 
+           standing_record_s * 100)
+```
+
+*First, in at most four pages (including figures), perform a careful EDA (exploratory data analysis). Consider the following questions to help motivate your EDA:*
+
+*What kind of variables do you have?*  
+We have 11 race identifier variables, 15 weather variables, and 19 race result variables with 7 being generated or derived from the original unique 12 race result variables. The race identifier variables include the purpose of the race, distance, and time and location details. Most of the weather variables are numeric and can be considered continuous. Similarly, the race result variables are numeric and can be considered continuous. To simplify calculations with time variables, we transform the records and finishing times to seconds rather than hours, minutes, and seconds. 
+```{r}
+str(results)
+```
+
+*What are the empirical relationships between the variable?*  
+*Consider whether some of the weather variables are calculated using other weather variables.*  
+*Consider the relationship between date (month, year) and progress of the record, and weather.*
+
+*Are there any problems with the data?*  
+The 4th through 10th place finishing times are not available for a large portion of races, specifically the marathon distance, and it was determined to be beyond the scope of this project to collect these results. Therefore, we cannot confidently use these variables or any function of these variables as the response for our model. However, for all races included in our final data set, the top 3 finishing times were available. Therefore, we are able to use these variables or a function of these variables as the response.
+
+*Does there appear to be potentially problematic collinearity amongst the predictor variables?*
+```{r}
+ggplot(data = results, aes()) +
+  geom_histogram(aes(x = percent_standing_1st))
+```
+
+```{r}
+weather = c("dist_from_loc", "air_temp", "dew_point", "wind_speed", 
+            "adj_wind_speed", "rel_hum", "clouds_OKTA", "solar_rad",
+            "heat_index", "simp_wet_bulb", "wet_bulb")
+ggpairs(data = results[, weather])
+```
+
+*Can you detect early signs of what variables are likely to be important in predicting the response?*
+
+*What are the key figures or numerical summaries that describe the most important aspects of the data?*
+
+*Does your EDA suggest to you what modeling approaches you should aim to try?*
+
+*Does your EDA suggest that any transformations of the variables might be needed?*
+
+*Outline how you propose to model the data to investigate your question of interest in a brief paragraph. You shouldn’t necessarily be fitting any models at this stage, but rather exploring the data to see what types of models you will want to consider at the analysis stage.*
+
+## Methods and Model Building
+
+
+## Results and Discussion
+
+
+## Appendix
