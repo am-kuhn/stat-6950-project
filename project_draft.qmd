@@ -78,6 +78,7 @@ results = results %>%
 We have 11 race identifier variables, 15 weather variables, and 19 race result variables with 7 being generated or derived from the original unique 12 race result variables. The race identifier variables include the purpose of the race, distance, and time and location details. Most of the weather variables are numeric and can be considered continuous. Similarly, the race result variables are numeric and can be considered continuous. To simplify calculations with time variables, we transform the records and finishing times to seconds rather than hours, minutes, and seconds. 
 ```{r}
 str(results)
+table(results$distance, results$competition, results$sex)
 ```
 
 *What are the empirical relationships between the variable?*  
@@ -89,24 +90,36 @@ The 4th through 10th place finishing times are not available for a large portion
 
 *Does there appear to be potentially problematic collinearity amongst the predictor variables?*
 ```{r}
-ggplot(data = results, aes()) +
-  geom_histogram(aes(x = percent_standing_1st))
-```
-
-```{r}
+## need to decrease size of scatterplot matrix for weather
 weather = c("dist_from_loc", "air_temp", "dew_point", "wind_speed", 
             "adj_wind_speed", "rel_hum", "clouds_OKTA", "solar_rad",
             "heat_index", "simp_wet_bulb", "wet_bulb")
-ggpairs(data = results[, weather])
+ggpairs(data = results[, c(weather, "percent_standing_1st")])
 ```
 
 *Can you detect early signs of what variables are likely to be important in predicting the response?*
+```{r}
+ggplot(data = results, aes()) +
+  geom_histogram(aes(x = percent_standing_1st))
+
+ggplot(data = results, aes()) + 
+  geom_boxplot(aes(x = competition, y = percent_standing_1st))
+
+ggplot(data = results, aes()) + 
+  geom_boxplot(aes(x = sex, y = percent_standing_1st))
+
+ggplot(data = results, aes()) + 
+  geom_boxplot(aes(x = distance, y = percent_standing_1st))
+```
 
 *What are the key figures or numerical summaries that describe the most important aspects of the data?*
 
-*Does your EDA suggest to you what modeling approaches you should aim to try?*
 
-*Does your EDA suggest that any transformations of the variables might be needed?*
+*Does your EDA suggest to you what modeling approaches you should aim to try?*  
+*MLR? Polynomial?*
+
+*Does your EDA suggest that any transformations of the variables might be needed?*  
+*Need log transformations? Box-Cox?*
 
 *Outline how you propose to model the data to investigate your question of interest in a brief paragraph. You shouldn’t necessarily be fitting any models at this stage, but rather exploring the data to see what types of models you will want to consider at the analysis stage.*
 
