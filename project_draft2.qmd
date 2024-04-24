@@ -1,0 +1,226 @@
+---
+format: pdf
+editor: visual
+---
+
+Andrea Kuhn & Alex Nguyen\
+Stat 6950
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.height = 3, fig.width = 6, fig.align = 'center', message = FALSE, number_sections = FALSE)
+library(alr4)
+library(tidyverse)
+library(ggplot2)
+#install.packages('corrplot')
+library(cowplot)
+# update.packages(ask = FALSE)
+# remove.packages('htmltools')
+#install.packages("sass")
+library(kableExtra)
+library(tidymodels)
+library(patchwork)
+library(MASS)
+library(GGally)
+library(dplyr)
+library(hms)
+library(corrplot)
+```
+
+# Data Project
+
+## Introduction
+
+The data set contains results for the marathon, 50 km race-walk, 20 km race-walk, 10000 m, 5000 m, and 3000 m-steeplechase for major competitions (Commonwealth Games, Diamond League, World Athletics Continental Cup, World Athletics Gold Label Races, Olympic Games, World Athletics Race Walking Team Championships, and World Championships) from 2000-2019. The standing event record and world record were also included for each event. These results were obtained from the official websites and collected between February 2016 and March 2024.\newline\newline \noindent  The original data set contained 1258 races ranging from 1936 to 2019 after screening out races at the beginning of the creation due to inconsistencies in community interest and runner participation. For our uses, we will only be considering race-walking, track, and marathon championships races from 2000-2010 and marathon Gold Label Races from 2010-2019. Additionally, since our focus will be only on the top three results (elite athletes) rather than the 25th, 50th, 100th, and 300th place finishers (well-trained runners) we removed several Gold Label Races (marathons) that are historically not attended by elite athletes (Athens, Gold Coast, Ottawa, Philadelphia, etc.). These races were selected by reviewing the results from 2010-2019 and by utilizing personal knowledge and experience. This choice to reduce the original data set was also driven by the necessity to manually compete the data for the remaining Gold Label Races. Because most Gold Label Races (marathons) have a combined male and female start, the original data set did not distinguish between the genders for these races. Therefore, we completed our data set by copying the weather and location values from the male race and then adding the top three female finishers. We also removed races that were missing finishing times from the original data set. Our current data set has 657 races ranging from 2000-2019.\newline\newline \noindent  For the process used to collect the weather data, see Mantzios et al..
+
+### Proposed Question
+
+*More detailed proposed question. Be specific with what our response variable is.*
+
+## Exploratory Data Analysis
+
+```{r include = FALSE}
+## we can probably hide this code chunk and just describe what we initially do for cleaning
+
+## pull in data and clean
+results = read.csv("race_results.csv", header = TRUE)
+
+## rename columns for easier reading
+colnames(results) = c("competition", "distance", "sex", "host", "country",
+                      "day", "month", "year", "time",
+                      "latitude", "longitude", "NOAA_ID", "station_loc", 
+                      "dist_from_loc", "air_temp", "dew_point", "wind_speed", 
+                      "adj_wind_speed", "rel_hum", "clouds_OKTA", 
+                      "diff_from_req_time", "time_zone", "solar_rad",
+                      "heat_index", "simp_wet_bulb", "wet_bulb",
+                      "world_record", "standing_record", "time_1st", 
+                      "time_2nd", "time_3rd", "time_4th", "time_5th", 
+                      "time_6th", "time_7th", "time_8th", "time_9th", 
+                      "time_10th", "time_avgTop3")
+
+## remove missing values
+weather_missing = which(is.na(results$NOAA_ID) | is.na(results$rel_hum))
+
+results_missing = which(results$world_record == "" | 
+                        results$standing_record == "" | 
+                        results$time_1st == "")
+results = results[-c(weather_missing, results_missing),]
+
+## convert time string to time object
+results$world_record = as_hms(results$world_record)
+results$standing_record = as_hms(results$standing_record)
+results$time_1st = as_hms(results$time_1st)
+results$time_avgTop3 = as_hms(results$time_avgTop3)
+
+## convert time to seconds
+results$world_record_s = as.numeric(results$world_record)
+results$standing_record_s = as.numeric(results$standing_record) 
+results$time_1st_s = as.numeric(results$time_1st)
+results$time_avgTop3_s = as.numeric(results$time_avgTop3)
+
+## percent deviation from world and standing record
+results = results %>% 
+  mutate(percent_world_1st = (time_1st_s - world_record_s) / 
+           world_record_s * 100,
+         percent_standing_1st = (time_1st_s - standing_record_s) / 
+           standing_record_s * 100)
+
+## make overall date of competition variable
+results = results %>%
+  mutate(date = make_date(year, month, day))
+```
+
+*First, in at most four pages (including figures), perform a careful EDA (exploratory data analysis). Consider the following questions to help motivate your EDA:*
+
+*What kind of variables do you have?*\
+We have 11 race identifier variables, 15 weather variables, and 19 race result variables with 7 being generated or derived from the original unique 12 race result variables. The race identifier variables include the purpose of the race, distance, and time and location details. Most of the weather variables are numeric and can be considered continuous. Similarly, the race result variables are numeric and can be considered continuous. To simplify calculations with time variables, we transform the records and finishing times to seconds rather than hours, minutes, and seconds.
+
+(What do we do with variables like time, timezone, distance from location??)
+
+Incorporating Distance from Location Variable: While the majority of races are situated within a 10-mile radius of a meteorological station, there are instances where races are located considerably farther away. This variance in proximity can serve as a categorical predictor, distinguishing between races within 10 miles of a station and those situated beyond this threshold. By categorizing races based on their proximity to the closest meteorological station, we can account for potential inaccuracies in weather data, particularly for events located further from monitoring infrastructure.
+
+Races within 10 miles of meteorological stations are expected to have more precise weather data available, as the stations are closer and can provide real-time information with higher fidelity. We can see this in the correlation matrix between the weather variables and the percene deviation based on the categories above. Observe higher overall correlation between percent deivation and the weather data for races that are within 10 miles of a metereological station as compared to races further away. This suggests that weather conditions may play a more influential role in races held closer to meteorological stations, even if individual racers are not directly privy to weather information.
+
+That said, the difference is still very small and we can ignore it...
+
+```{r}
+#str(results)
+# Remove NA values from the 'dist_from_loc' column
+# cleaned_distances <- na.omit(results$dist_from_loc)
+
+# histogram of the distances
+ggplot(data = results, aes()) + 
+  geom_boxplot(aes(x = dist_from_loc))
+
+# new categotical variable
+results$proximity <- ifelse(results$dist_from_loc <= 10, "close", "far")
+
+# Subset dataframe based on values in dist_from_loc
+under10 <- subset(results, proximity == "close")
+above10 <- subset(results, proximity == "far")
+
+weather = c("air_temp", "dew_point", "wind_speed", 
+            "adj_wind_speed", "rel_hum", "clouds_OKTA", "solar_rad",
+            "heat_index", "simp_wet_bulb", "wet_bulb")
+
+ggpairs(data = under10[, c(weather[1:5], "percent_standing_1st")])
+ggpairs(data = above10[, c(weather[1:5], "percent_standing_1st")])
+
+ggpairs(data = under10[, c(weather[5:10], "percent_standing_1st")])
+ggpairs(data = above10[, c(weather[5:10], "percent_standing_1st")])
+
+# we can include this later with the other categorical variables if you want to. 
+ggplot(data = results, aes()) + 
+  geom_boxplot(aes(x = proximity, y = percent_standing_1st))
+
+```
+
+*Are there any problems with the data?*\
+The 4th through 10th place finishing times are not available for a large portion of races, especially the marathon distance, and it was determined to be beyond the scope of this project to collect these results. Therefore, we cannot confidently use these variables or any function of these variables as the response for our model. However, for all races included in our final data set, the top 3 finishing times were available. Therefore, we are able to use these variables or a function of these variables as the response.
+
+### Response Variable
+
+Our response variable `percent_standing_1st` represents the percent difference between the first place finishing time and the event record going into the start of the event. A negative value indicates the finisher set a new event record, while a positive value indicates the finisher had a time slower than the event record. The values range from -8.604% to 14.603% with an average of 1.592%. The distribution is unimodal and roughly symmetric with a slight right skew. It does not appear that any transformations of the response variable are necessary.\newline\newline \noindent (We may have some outliers above 10% and below -5% in percent_standing_1st? Will need to do formal outlier tests? Check cook's distance, compute studentized residuals, etc.? See what the predictor values are that are resulting in those outliers?)
+
+```{r}
+summary(results$percent_standing_1st)
+ggplot(data = results, aes()) +
+  geom_histogram(aes(x = percent_standing_1st))
+```
+
+```{r}
+# suspected outliers 
+outliers <- boxplot.stats(results$percent_standing_1st)$out
+outliers_index <- which(results$percent_standing_1st %in% outliers)
+## [1]  56  57  66  83  84 152 159 164 171 177 179 187 190 193 197 204 250 261 283 314 343 344 346 389 390 408 521 589 590 626
+## any of these races particularly interesting that would resolve in being outliers?
+```
+
+*What are the empirical relationships between the variables?*\
+*Does there appear to be potentially problematic collinearity amongst the predictor variables?*\
+### Weather Variables 
+We expect collinearity between several of the weather predictors as many are calculated using one another. For example, the heat index was calculated using either air temperature and dew point or air temperature and relative humidity; the adjusted wind speed was calculated using wind speed and then adjusting for buildings and elevation; and the wet bulb globe temperature (WBGT) and simple WBGT were calculated using previous methodology that relies on standard meteorological data (air temperature, dew point, etc.) to predict the WBGT without completing a true measurement. Other implicit relationships also occur without direct dependence. For example, when cloud coverage is high, solar radiation will likely be low.\newline\newline \noindent Visually assessing scatterplots and calculating correlation coefficients, it appears that air temperature, dew point, heat index, and simplified WBGT are likely to be important in predicting the percent deviation between finishing time and event record. However, due to the high collinearity between these predictors, it is also possible that they are explaining the same variation in percent deviation. Formal tests will need to be completed to determine which predictors provide the best model fit.\newline\newline \noindent
+
+```{r}
+## need to decrease size of scatterplot matrix for weather, or just include pieces in appendix and reference it for our observations
+weather = c("air_temp", "dew_point", "wind_speed", 
+            "adj_wind_speed", "rel_hum", "clouds_OKTA", "solar_rad",
+            "heat_index", "simp_wet_bulb", "wet_bulb")
+ggpairs(data = results[, c(weather[1:5], "percent_standing_1st")])
+ggpairs(data = results[, c(weather[5:10], "percent_standing_1st")])
+
+ggpairs(data = results[, c("air_temp", "dew_point", "heat_index", "simp_wet_bulb", "percent_standing_1st")])
+
+## correlation plot of all weather variables, I like that we can see all correlations in one plot, but we can't see outliers or wonky relationships
+M = cor(results[,c(weather, "percent_standing_1st")])
+corrplot(M, method = "ellipse", type = "lower", tl.cex = 0.6, cl.cex = 0.5)
+```
+
+*Can you detect early signs of what variables are likely to be important in predicting the response?*\
+### Categorical Variables 
+While our primary goal is to assess the impact of weather variables on the performance of elite endurance athletes, several categorical variables display a potential relationship with percent deviation from the event record.
+
+Beginning with analyzing our available categorical variables and their individual distributions, we see that the split between male and female races is roughly even with 357 male races and 293 female races. This difference is largely due to a greater number of Gold Label Marathons, 50K race-walks, and 3K steeplechase results for males. The 3K steeplechase was not introduced to major female competitions until the late 2000s, and the 50K race-walk had no major female results during our data collection time period. Additionally, we see there is a relationship between competition and distance. For example, the Diamond League only includes results at 5K and 10K, while Gold Label only includes results for the marathon.
+
+```{r}
+## could possibly include the last table, but would need to make it prettier
+#table(results$sex)
+#table(results$competition)
+#table(results$distance, results$competition, results$sex)
+```
+
+Now, assessing the relationships between our categorical variables and our response variable, we see that the percent deviation from the event record appears to show some variability across competition type. Specifically, the Common Wealth and Olympic races tend to have deviations either closer to zero or more negative. Additionally, Gold Label marathons and World Championships races appear to have several right-skewed observations with finishing times significantly slower than the event record.\newline\newline \noindent Gender does not appear to have a significant relationship with percent deviation from the event record. However, in addition to possibly accounting for the discrepancy in sample sizes for distances and competitions across genders, including gender as a predictor would allow us to assess the differences in the effects of weather on endurance performance between males and females.
+
+Interaction term / effects plot too? we can make some interaction plots between 2 of "air_temp", "dew_point", "heat_index", "simp_wet_bulb"
+
+```{r}
+## obviously these would not be the final plots or all included, just for personal use right now, we should choose a color scheme
+ggplot(data = results, aes()) + 
+  geom_boxplot(aes(x = competition, y = percent_standing_1st))
+
+ggplot(data = results, aes()) + 
+  geom_boxplot(aes(x = sex, y = percent_standing_1st))
+
+ggplot(data = results, aes()) + 
+  geom_boxplot(aes(x = distance, y = percent_standing_1st))
+
+ggplot(data = results, aes()) + 
+  geom_point(aes(x = date, y = percent_standing_1st, color = distance), alpha = 0.5) +
+  facet_grid(rows = vars(sex))
+```
+
+*What are the key figures or numerical summaries that describe the most important aspects of the data?* Likely will be simple correlation between weather predictors and response. Something else?
+
+*Does your EDA suggest to you what modeling approaches you should aim to try?*\
+MLR? Polynomial? Likely want to keep model simple to aid in interpretation of final parameters. Goal is to say "a one unit increase in weather is associated with a % drop in performance."\
+Start with all variables and go from there?
+
+*Does your EDA suggest that any transformations of the variables might be needed?*\
+Need log transformations? Response variable doesn't seem to need a transformation. Box-Cox?
+
+*Outline how you propose to model the data to investigate your question of interest in a brief paragraph. You shouldn't necessarily be fitting any models at this stage, but rather exploring the data to see what types of models you will want to consider at the analysis stage.*
+
+## Methods and Model Building
+
+## Results and Discussion
+
+## Appendix

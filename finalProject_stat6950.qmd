@@ -14,8 +14,9 @@ Stat 6950
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(fig.height = 2, fig.width = 6,
-                      echo = FALSE, fig.align = 'center', 
-                      message = FALSE, number_sections = FALSE)
+                      echo = FALSE, fig.align = 'center', fig.pos = 'H',
+                      message = FALSE, warning = FALSE,
+                      number_sections = FALSE)
 library(alr4)
 library(tidyverse)
 library(ggplot2)
@@ -44,7 +45,7 @@ We also found 7 races with a missing meteorological station ID and missing weath
 Our goal is to assess the impact of weather, specifically temperature or heat related variables, on elite athlete performance in endurance running events. We hope to determine which, if any, weather variables influence performance, and whether the gender of participants, competition format, or race length also play a role.
 
 ## Exploratory Data Analysis
-```{r echo = FALSE}
+```{r}
 ## pull in data and clean
 results = read.csv("race_results.csv", header = TRUE)
 
@@ -96,6 +97,8 @@ results = results %>%
 ## make overall date of competition variable
 results = results %>%
   mutate(date = make_date(year, month, day))
+
+
 ```
 
 Our data set contains 12 race identifier variables, 16 weather variables, and 20 race result variables with 8 being generated or derived from the original unique 12 race result variables. The race identifier variables include the purpose of the race, distance, and time and location details. Most of the weather variables are numeric and can be considered continuous. Similarly, the race result variables are numeric and can be considered continuous. To simplify calculations with time variables, we transform the records and finishing times to seconds rather than hours, minutes, and seconds.  
@@ -103,8 +106,10 @@ Our data set contains 12 race identifier variables, 16 weather variables, and 20
 Additionally, we separated `dist_from_loc` into a categorical variable. While the majority of races are situated within a 10-mile radius of a meteorological station, there are instances where races are located considerably farther away (491 races within 10-miles vs. 159 races further than 10-miles). By categorizing races based on their proximity to the closest meteorological station, we can account for potential inaccuracies in weather data, particularly for events located further from monitoring infrastructure.
 
 ```{r include = FALSE}
-# review proximity distribution
+# Review proximity distribution
 table(results$proximity)
+
+
 ```
 
 ### Response Variable
@@ -115,18 +120,21 @@ There appear to be three potential outliers in our response variable with values
 #| label: fig-response-hist
 #| fig-cap: "Histogram of response variable."
 
-#summary(results$percent_standing_1st)
+# Review response variable and create histogram.
+#summary(results$percent_standing_avg)
 ggplot(data = results, aes()) +
   geom_histogram(aes(x = percent_standing_avg)) +
   xlab("Percent Deviation between Top Three Average and Standing Record") +
   ylab("Count")
+
+
 ```
 
 ### Weather Variables  
 We expect collinearity between several of the weather predictors as many are calculated using one another. For example, the heat index was calculated using either air temperature and dew point or air temperature and relative humidity; the adjusted wind speed was calculated using wind speed and then adjusting for buildings and elevation; and the wet bulb globe temperature (WBGT) and simple WBGT were calculated using previous methodology that relies on standard meteorological data (air temperature, dew point, etc.) to predict the WBGT without completing a true measurement. Other implicit relationships also occur without direct dependence. For example, when cloud coverage is high, solar radiation will likely be low.
 
 We may note the differences in the correlation matrix between the weather variables and the percent deviation when races are separated by those within 10-miles of the meteorological station (@fig-corrplot-1) and those further than 10-miles (@fig-corrplot-2). We observe higher overall correlation between percent deviation and the weather data for races that are within 10 miles of a meteorological station as compared to races further away. Additionally, some relationships between predictors and the response appear to flip direction. This suggests that weather conditions may play a more influential role in races held closer to meteorological stations.
-```{r fig.height = 4.5}
+```{r fig.height = 4}
 #| layout-ncol: 2
 #| label: fig-corrplot
 #| fig-cap: "Correlation plot between weather predictors and response."
@@ -134,9 +142,12 @@ We may note the differences in the correlation matrix between the weather variab
 #|   - "Weather station within 10-miles."
 #|   - "Weather station beyond 10-miles."
 
+# Significant weather variables.
 weather = c("air_temp", "dew_point", "wind_speed", 
-            "adj_wind_speed", "rel_hum", "clouds_OKTA", "solar_rad",
-            "heat_index", "simp_wet_bulb", "wet_bulb")
+            "adj_wind_speed", "rel_hum", "clouds_OKTA",
+            "solar_rad", "heat_index", "simp_wet_bulb", 
+            "wet_bulb")
+# Create correlation plots. 
 temp = results[results$proximity == "close" ,c(weather, "percent_standing_avg")]
 M.under = cor(temp, use = "na.or.complete")
 corrplot::corrplot(M.under, method = "ellipse", type = "lower", 
@@ -145,23 +156,32 @@ temp = results[results$proximity == "far" ,c(weather, "percent_standing_avg")]
 M.over = cor(temp, use = "na.or.complete")
 corrplot::corrplot(M.over, method = "ellipse", type = "lower", 
          tl.cex = 1, cl.cex = 0.5, mar = c(0,0,0,0))
+
+
 ```
 Regardless of proximity, visually assessing scatterplots and calculating correlation coefficients, it appears that air temperature, dew point, wind speed, heat index, relative humidity, and simplified WBGT are likely to be important in predicting the percent deviation between finishing time and event record. The scatterplot matrix with these predictors and all races is shown in @fig-scatterplot-weather. However, due to the high collinearity between these predictors, it is also possible that they are explaining the same variation in percent deviation. Formal tests will need to be completed to determine which predictors provide the best model fit and whether proximity to the meteorological station influences the effect of the weather predictors. For several weather parameters, there appears to be a potential quadratic relationship with `percent_standing_avg` such that extreme high and low values of the weather parameter are associated with large percent deviations. However, this relationship may be a result of extreme cases skewing our visual inspection (i.e. 2018 Boston Marathon and 2019 World Championship Race-Walks).
-```{r fig.height=5, fig.width=6}
+```{r fig.height=4, fig.width=6}
 #| label: fig-scatterplot-weather
 #| fig-cap: "Scatterplot matrix of significant weather predictors."
 
-ggpairs(data = results[, c("air_temp", "dew_point", "wind_speed", "heat_index", "simp_wet_bulb", "rel_hum", "percent_standing_avg")]) +
+ggpairs(data = results[, c("air_temp", "dew_point", "wind_speed", 
+                           "heat_index", "simp_wet_bulb", "rel_hum", 
+                           "percent_standing_avg")]) +
   theme(strip.text.x = element_text(size = 5),
         strip.text.y = element_text(size = 4))
+
+
 ```
 
 ```{r include = FALSE}
+# Plots used for review but not included in report.
 ## histogram of the distances
-ggplot(data = results, aes()) + geom_boxplot(aes(x = dist_from_loc))
+ggplot(data = results, aes()) + 
+  geom_boxplot(aes(x = dist_from_loc))
 
 ## proximity vs. response 
-ggplot(data = results, aes()) + geom_boxplot(aes(x = proximity, y = percent_standing_1st))
+ggplot(data = results, aes()) + 
+  geom_boxplot(aes(x = proximity, y = percent_standing_1st))
 
 ## subset dataframe based on values in dist_from_loc
 under10 <- subset(results, proximity == "close")
@@ -176,6 +196,8 @@ ggpairs(data = above10[, c(weather[5:10], "percent_standing_1st")])
 
 ggpairs(data = results[, c(weather[1:5], "percent_standing_1st")])
 ggpairs(data = results[, c(weather[5:10], "percent_standing_1st")])
+
+
 ```
 
  
@@ -188,28 +210,36 @@ Beginning with analyzing our available categorical variables and their individua
 #| label: tbl-count-table
 #| tbl-cap: "Count data of primary categorical variables."
 
-## count table of sex, competition, and distance variables
-cat.counts = as.data.frame(table(results$distance, results$competition, results$sex))
-cat.counts = cat.counts %>% pivot_wider(names_from = c("Var1", "Var3"), values_from = "Freq")
+# Count table of sex, competition, and distance variables.
+cat.counts = as.data.frame(table(results$distance, 
+                                 results$competition, 
+                                 results$sex))
+cat.counts = cat.counts %>% 
+  pivot_wider(names_from = c("Var1", "Var3"), values_from = "Freq")
 cat.counts$Var2 = c("Common Wealth", "Diamond League", "Gold Marathon",
                     "Olympic", "World Champ.", "World Cup")
 
-table = cat.counts %>% kable(col.names = c("Comp.", "10K", "20K", "3K", "50K", "5K", "Mar.", 
-                                           "10K", "20K", "3K", "50K", "5K", "Mar."), booktabs = FALSE) %>% 
+table = cat.counts %>% 
+  kable(col.names = c("Comp.", "10K", "20K", "3K", "50K", "5K", "Mar.",
+                      "10K", "20K", "3K", "50K", "5K", "Mar."), 
+        booktabs = FALSE) %>% 
   add_header_above(c(" ", "Men" = 6, "Women" = 6)) %>% 
-  kable_styling(latex_options = "striped", full_width = FALSE)
+  kable_styling(latex_options = c("striped", "HOLD_position"), full_width = FALSE)
 table
 ```
 Now, assessing the relationships between our categorical variables and our response variable, we see that the percent deviation from the event record does not appear to show significant variability across competition type, although some variability is present (@fig-comp-boxplot).
-```{r}
+```{r fig.height = 2}
 #| label: fig-comp-boxplot
 #| fig-cap: "Percent Deviation by Competition Type."
 
+# Plot of percent deviation by competition.
 ggplot(data = results, aes()) + 
   geom_boxplot(aes(x = competition, y = percent_standing_avg)) +
   xlab("Competition") +
   ylab("Percent Deviation") +
   theme(axis.text.x = element_text(size = 7))
+
+
 ```
 @fig-distance-plots(a) shows the relationships between date, distance, gender, and percent deviation from the standing record. 
 
@@ -225,6 +255,7 @@ In @fig-distance-plots(a), we also see that both genders had a slightly higher p
 #|    - "Percent Deviation by Date, Distance, and Gender."
 #|    - "Percent Deviation by Heat Index and Competition."
 
+# Plots of percent deviation and other predictors.
 p1 = ggplot(data = results, aes()) + 
   geom_point(aes(x = date, y = percent_standing_avg, color = distance), 
              alpha = 0.4) +
@@ -243,6 +274,8 @@ p2 = ggplot(data = results) +
 
 p1
 p2
+
+
 ```
 To demonstrate the possibility of an interaction term between a weather predictor and a categorical variable, @fig-distance-plots(b) shows a relationship between heat index and distance. It is possible that the slope of a regression line for `percent_standing_avg` on `heat_index` will differ for each level of `distance`. Further, we see the slight curvature recognized in the earlier scatterplot matrix. 
 
@@ -253,9 +286,40 @@ Our preliminary model selection will be guided by `stepAIC()`. We will then comp
 
 ## Methods and Model Building
 
-We start by fitting a simple model with all of our previously noted potential parameters and perform step-wise, forward, and backward model selection using AIC. Each selection process returned the same predictors with the only variation coming from the forward selection model which excluded `rel_hum`, `simp_wet_bulb` and `proximity` as a predictor while the step-wise and backward selection models excluded `air_temp` and `simp_wet_bulb`. Therefore, we will begin our analysis with the step-wise/backward selection model and consider more stringent parameter selection criteria due to multi-collinearity in predictors. Additionally, we will explore adding interaction terms to determine whether relationships exist between weather predictors and our categorical variables. 
+We start by fitting a simple model with all of our previously noted potential parameters and perform step-wise, forward, and backward model selection using AIC. We may express our main effects full model as:
+\begin{align*}
+Y_i &= \beta_0 + \beta_{11}U_{11i} \\
+& \quad \quad \quad + \beta_{21}U_{21i}+ \beta_{22}U_{22i}+ \beta_{23}U_{23i}+ \beta_{24}U_{24i}+ \beta_{25}U_{25i} \\
+& \quad \quad \quad + \beta_{31}U_{31i}+ \beta_{32}U_{32i}+ \beta_{33}U_{33i}+ \beta_{34}U_{34i}+ \beta_{35}U_{35i}+ \\
+& \quad \quad \quad + \beta_1X_{1i}+\beta_2X_{2i}+\beta_3X_{3i}+\beta_4X_{4i}+\beta_4X_{5i}+\beta_4X_{6i} \\
+& \quad \quad \quad +\beta_{41}U_{41i} +e_i
+\end{align*}
+where we have $e_i \overset{iid}{\sim} N(0,\sigma^2), \ i=1,...,650$ and define the parameters as such:  
 
-```{r}
+\begingroup
+\leftskip4em
+\rightskip\leftskip
+$Y_i$ is the percent deviation from standing record of race $i$ versus the average top 3 finishing times.  
+$U_{11i}$ = 1 if its a female race and 0 otherwise.  
+$U_{21i}$ = 1 if its a Diamond League competition.  
+$U_{22i}$ = 1 if its a Gold Marathon competition.  
+$U_{23i}$ = 1 if its a Olympic competition.  
+$U_{24i}$ = 1 if its a World Championships competition.  
+$U_{25i}$ = 1 if its a World Cup competition.  
+$U_{31i}$ = 1 if its a 20k distance race.  
+$U_{32i}$ = 1 if its a 3k distance race.  
+$U_{33i}$ = 1 if its a 50k distance race.  
+$U_{34i}$ = 1 if its a 5k distance race.  
+$U_{35i}$ = 1 if its a Marathon distance race.  
+$U_{41i}$ = 1 if the proximity of the race to the closest weather station was far (> 10 miles).  
+$X_{1i}, X_{2i}, X_{3i}, X_{4i}, X_{5i}, X_{6i}$ is the dew point, relative humidity, wind speed, heat index, air temperature, and simplified WBGT of $i$th race.
+\par
+\endgroup
+
+Each selection process returned similar predictors with the only variation coming from the forward selection model which excluded `dew_point`,  `rel_hum`, `simp_wet_bulb` and `proximity` as predictors while the step-wise and backward selection models excluded `air_temp` and `simp_wet_bulb`. Therefore, we will begin our analysis with the step-wise/backward selection model and consider more stringent parameter selection criteria due to multi-collinearity in predictors. Additionally, we will explore adding interaction terms to determine whether relationships exist between weather predictors and our categorical variables. 
+
+```{r include = FALSE}
+# Step-wise, forward, and backward searches using AIC.
 potential <- c("sex", "competition", "distance", 
               "air_temp", "dew_point", "rel_hum", 
               "wind_speed", "heat_index", "simp_wet_bulb", 
@@ -266,20 +330,38 @@ results.potential <- results[,potential]
 nullMod <- lm(percent_standing_avg ~ 1, data = results.potential)
 fullMod <- lm(percent_standing_avg ~ ., data = results.potential)
 
-stepMod <- stepAIC(object = fullMod, direction = "both", k = 2, trace = FALSE)
-forwardMod <- stepAIC(object = nullMod, scope = list(upper = fullMod), direction = "forward", k = 2, trace = FALSE)
-backwardMod <- stepAIC(object = fullMod, direction = "backward", k = 2, trace = FALSE)
+stepMod <- stepAIC(object = fullMod, 
+                   direction = "both", 
+                   k = 2, trace = FALSE)
+forwardMod <- stepAIC(object = nullMod, 
+                      scope = list(upper = fullMod), 
+                      direction = "forward", 
+                      k = 2, trace = FALSE)
+backwardMod <- stepAIC(object = fullMod, 
+                       direction = "backward", 
+                       k = 2, trace = FALSE)
 # summary(stepMod)
 # summary(forwardMod)
 # summary(backwardMod)
 
-#add table with including predictors marked for each model
 ```
-To assess potential multi-collinearity, we will look at the VIF (GVIF) values for our step-wise model. As expected, we see that dew point, relative humidity, and heat index show high collinearity.. Therefore, given the significance of each predictor and our previously observed correlations, we will remove dew point from the model. Air temperature showed strong collinearity with heat index, which we desire to maintain in the model for inference and interpretation purposes.
+
+Method  | Sex | Comp. | Dist. | Air Temp. | Dew Point | Rel. Hum. | Wind | Heat Index | sWBGT | Prox.
+--------|-----|-------|-------|--------|--------|--------|------|--------|-------|---------
+`SW` | \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | | \mbox{\color{red} $\bullet$} |  \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | | \mbox{\color{red} $\bullet$} |
+`FS` | \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | | | \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | | |
+`BE` | \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | | \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | \mbox{\color{red} $\bullet$} | | \mbox{\color{red} $\bullet$} |
+
+To assess potential multi-collinearity, we will look at the VIF (GVIF) values for our step-wise model (@tbl-vif-stepwise). As expected, we see that dew point, relative humidity, and heat index show high collinearity. Therefore, given the significance of each predictor and our previously observed correlations, we will remove dew point from the model. Air temperature showed strong collinearity with heat index, which we desire to maintain in the model for inference and interpretation purposes.
 ```{r}
-## vif
-kable(vif(stepMod))%>% 
+#| label: tbl-vif-stepwise
+#| tbl-cap: "VIF for Step-Wise Model"
+
+## VIF for step-wise model.
+kable(vif(stepMod), digits = 4)%>% 
   kable_styling(latex_options = "striped", full_width = FALSE)
+
+
 ```
 
 After refitting our model, our VIF values do not suggest evidence of multi-collinearity. However, to explore whether relative humidity or wind speed explain any additional variability in the percent deviation from event record after accounting for all other parameters in the model, we may review added variable plots for `rel_hum` and `wind_speed`. @fig-avp(a) and @fig-avp(b) both appear to be null plots, which suggests that relative humidity and wind speed do not explain any additional variability. This is supported by the results of ANOVA tests on each parameter at a family-wise error rate of 5\%. Further, the ANOVA tests (@tbl-anova-reduced) suggest that distance and proximity are also not significant. We will remove proximity as a predictor, as we only hoped to explore whether there was a relationship between distance to meteorological station and percent deviation, but it is possible that the relationship only lies in the integrity of the weather data itself. We will maintain distance in the model as we hope to consider interaction terms with this parameter.
@@ -291,9 +373,10 @@ After refitting our model, our VIF values do not suggest evidence of multi-colli
 #|    - "Relative Humidity AVP"
 #|    - "Wind Speed AVP"
 
-## reduced model
-reducedMod <- lm(percent_standing_avg ~ sex + competition + distance + wind_speed + heat_index + rel_hum + proximity, data = results)
-## added variable plots
+# Fit step-wise model without noted collinear points.
+reducedMod <- lm(percent_standing_avg ~ sex + competition + distance + 
+                   wind_speed + heat_index + rel_hum + proximity, data = results)
+# Added variable plots for reduced model.
 avPlot(reducedMod, "rel_hum",
        main = "")
 avPlot(reducedMod, "wind_speed",
@@ -303,28 +386,34 @@ avPlot(reducedMod, "wind_speed",
 
 ```{r}
 #| label: tbl-anova-reduced
-#| tbl-cap: "VIF for Reduced Model"
+#| tbl-cap: "ANOVA Test for Reduced Model"
 
+# ANOVA and VIF for reduced model.
 kable(anova(reducedMod))%>% 
   kable_styling(latex_options = "striped", full_width = FALSE)
 # kable(vif(reducedMod))%>% 
-#   kable_styling(latex_options = "striped", full_width = FALSE)
+#   kable_styling(latex_options = c("striped", "HOLD_position"), full_width = FALSE)
+
+
 ```
 As we hope to consider whether the heat index effects different race distances differently, we will add an interaction term between the continuous predictor `heat_index` and the categorical predictor `distance`. From the ANOVA tests at a family-wise error rate of 5\%, we see that the new interaction term is considered significant (@tbl-anova-int). While the main effect `distance` is not significant, we will keep it in the model to maintain the principal of marginality. 
 ```{r}
 #| label: tbl-anova-int
 #| tbl-cap: "ANOVA Test for Interaction Model"
 
-## Add interaction term.
-intMod <- lm(percent_standing_avg ~ sex + competition + distance + heat_index + distance:heat_index, data = results)
+# Fit model with interaction term.
+intMod <- lm(percent_standing_avg ~ sex + competition + distance + 
+               heat_index + distance:heat_index, data = results)
 
 # summary(intMod)
 kable(anova(intMod),
       col.names = c("DF", "SS", "MS", "F-Value", "P-Value"))%>% 
-  kable_styling(latex_options = "striped", full_width = FALSE)
+  kable_styling(latex_options = c("striped", "HOLD_position"), full_width = FALSE)
+
+
 ```
 We will now assess the fit of our model. The residual plots in @fig-model-diagnostics do not suggest any serious violations from the assumptions of equal variance and independence of errors in the multiple linear regression model. The Normal QQ-Plot does suggest that the normality assumption may be violated as the residuals distribution has heavier tails. A Yeo-Johnson Box-Cox transformation was considered to resolve this issue. However, because the optimizing value of $\lambda = 0.8282$ was near 1 and did not show significant improvement in model fit, we chose to maintain our non-transformed data.
-```{r fig.height = 4}
+```{r fig.height = 3}
 #| layout-ncol: 2
 #| layout-nrow: 2
 #| label: fig-model-diagnostics
@@ -335,12 +424,12 @@ We will now assess the fit of our model. The residual plots in @fig-model-diagno
 #|    - "Residuals vs. Heat Index"
 #|    - "Normal QQ-Plot"
 
+# Model diagnostics for initial interaction model.
 base = augment(intMod, results) %>% 
   mutate(.ti = rstudent(intMod)) %>% 
   rownames_to_column("case") %>% 
   ggplot()
 
-# Model diagnostics for initial interaction model.
 base + geom_point(aes(x = .fitted, y = .ti)) +
   labs(x = "Fitted", y = "Studentized Residuals")
 base + geom_point(aes(x = date, y = .ti)) +
@@ -354,7 +443,8 @@ qqline(rstudent(intMod))
 ```
 
 ```{r include = FALSE}
-# Consider Box-Cox transformation using Yeo-Johnson family to allow for negative response values.
+# Consider Box-Cox transformation using Yeo-Johnson family 
+# to allow for negative response values.
 bc <- boxCox(intMod, family="yjPower", plotit = TRUE)
 ## Optimal lambda value. 0.9091
 lambda <- bc$x[which.max(bc$y)]
@@ -362,102 +452,106 @@ lambda <- bc$x[which.max(bc$y)]
 
 ```
 Because our initial exploratory analysis found potential high leverage and outlier cases, we will test for outliers using the studentized residuals and identify highly influential cases using Cook's distance. In @fig-residual-diagnostics, we see that many cases have leverages greater than $3(p/n)$ and may be considered potentially influential. However, only one case has a significant Cook's distance (near 1), indicating that this case has a larger influence on the estimated parameter coefficients. Evaluating the studentized residuals, we see that three cases have residuals with absolute values greater than $F_{1-\alpha^*, n-p-1}$ (dotted lines), where $\alpha^*$ is the Bonferroni corrected error rate to account for testing all $n$ observations. Reviewing each of the four identified outliers, we find that the 2019 World Championship 50K race-walk and the 2018 Men's and Women's Boston Marathons are included. We will remove these observations as they reflect extreme and uncommon weather conditions in which many of the top performers opted to drop out of the race. The fourth race did not appear to have an obvious or sound reason for removal, therefore we will not remove it from our data set.
-```{r fig.height = 2}
+```{r fig.height = 1.5}
 #| layout-nrow: 3
 #| label: fig-residual-diagnostics
 #| fig-cap: "Residual Diagnostics"
-#| fig-subcap: 
-#|    - ""
-#|    - ""
-#|    - ""
+#| fig-subcap:
+#|    - "Leverage (Potential Influence)"
+#|    - "Cook's Distance (Influence)"
+#|    - "Studentized Residuals (Outlier)"
 
-## Code from Professor Hans: `residuals_diagnostics`
+
+# Residual diagnostics for initial interaction model.
+# Code from Professor Hans: `residuals_diagnostics`
 base + geom_point(aes(x = as.numeric(case), y = .hat)) +
   geom_hline(data = tibble(Threshold = c("2p/n", "3p/n"), 
                            ref = c(2*17/dim(results)[1], 3*17/dim(results)[1])), 
              aes(yintercept = ref, color = Threshold)) +
-  labs(x = "Case ID", y = "Leverage")
+  labs(x = "Case ID", y = "Leverage") +
+  theme(legend.position = c(0.8,0.6)) + 
+  guides(color = guide_legend(ncol = 2))
 base + geom_point(aes(x = as.numeric(case), y = .cooksd)) +
   labs(x = "Case ID", y = "Cook's Distance")
 base + geom_point(aes(x = as.numeric(case), y = .ti)) + 
   geom_hline(yintercept = 0, linetype = "dashed") +
-  geom_hline(yintercept = qt(1 - (0.05/(2*dim(results)[1])), df = 632 - 1), linetype = "dotted") +
-  geom_hline(yintercept = qt((0.05/(2*dim(results)[1])), df = 632 - 1), linetype = "dotted") + 
+  geom_hline(yintercept = qt(1 - (0.05/(2*dim(results)[1])), df = 632 - 1), 
+             linetype = "dotted") +
+  geom_hline(yintercept = qt((0.05/(2*dim(results)[1])), df = 632 - 1), 
+             linetype = "dotted") + 
   ylim(-5,5) +
   labs(x = "Case ID", y = "Studentized Residual")
 
 
 ```
 
-```{r include = FALSE}
-# Make temporary dataframe to find the cases with the extreme Cook's distance and studentized residuals.
+```{r remove-outliers, include = FALSE}
+# Make temporary dataframe to find the cases with the extreme 
+# Cook's distance and studentized residuals.
 outlierTestDF = augment(intMod, results) %>% 
   mutate(.ti = rstudent(intMod)) %>% 
   rownames_to_column("case")
 # Sort studentized residuals. Cases 590, 589, and 177 are our identified outliers.
-head(outlierTestDF[order(outlierTestDF$.ti, decreasing = TRUE), c(".ti", "case")])
-head(outlierTestDF[order(outlierTestDF$.ti, decreasing = FALSE), c(".ti", "case")])
+head(outlierTestDF[order(outlierTestDF$.ti, decreasing = TRUE), 
+                   c(".ti", "case")])
+head(outlierTestDF[order(outlierTestDF$.ti, decreasing = FALSE), 
+                   c(".ti", "case")])
 # Sort Cook's distances. Case 171 is our identified influencer.
-head(outlierTestDF[order(outlierTestDF$.cooksd, decreasing = TRUE), c(".cooksd", "case")])
+head(outlierTestDF[order(outlierTestDF$.cooksd, decreasing = TRUE), 
+                   c(".cooksd", "case")])
 # Look at "outlier" race results.
 outliers = c(171,177,590,589)
 results[which(outlierTestDF$case %in% outliers),c("date", "host", potential)]
 
 # Refit model without influential case.
 results.new <- results[-which(outlierTestDF$case %in% c(171,589,590)),]
-intMod.new <- lm(percent_standing_avg ~ sex + competition + distance + heat_index  + distance:heat_index, data = results.new)
-
-# Review ANOVA, residual diagnostics, and model diagnostics.
+intMod.new <- lm(percent_standing_avg ~ sex + competition + distance + 
+                   heat_index  + distance:heat_index, data = results.new)
 anova(intMod.new)
-base = augment(intMod.new, results.new) %>% 
-  mutate(.ti = rstudent(intMod.new)) %>% 
-  rownames_to_column("case") %>% 
-  ggplot()
-base + geom_point(aes(x = .fitted, y = .ti))
-base + geom_point(aes(x = date, y = .ti)) 
-base + geom_point(aes(x = heat_index, y = .ti))
-qqnorm(rstudent(intMod.new))
-qqline(rstudent(intMod.new))
-
-base + geom_point(aes(x = as.numeric(case), y = .hat)) +
-  geom_hline(data = tibble(threshold = c("2p/n", "3p/n"), 
-                           ref = c(2*17/dim(results.new)[1], 3*17/dim(results)[1])), 
-             aes(yintercept = ref, color = threshold))
-base + geom_point(aes(x = as.numeric(case), y = .cooksd))
-base + geom_point(aes(x = as.numeric(case), y = .ti)) + 
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  geom_hline(yintercept = qt(1 - (0.05/(2*dim(results.new)[1])), df = 629 - 1), linetype = "dotted") +
-  geom_hline(yintercept = qt((0.05/(2*dim(results.new)[1])), df = 629 - 1), linetype = "dotted") + 
-  ylim(-5,5)
-
-
 ```
-After refitting our model without the influential cases, we reviewed the updated model and residual diagnostics. The plots did not suggest any significant changes in model fit. After observing the slight curvature in the relationship between heat index and percent deviation, we fit a model including the squared heat index as an additional term. While this parameter did improve model fit, we did not believe the improvement outweighed the cost in interpretability. We also acknowledge that the quadratic relationship appears to be more pronounced for the 20K and 50K race-walks and marathons, as evident in @fig-distance-plots(b). Given more time to complete our data set, we would have liked to have expanded our model to individual distances and improve our predictive performance. 
+
+After refitting our model without the influential cases, we reviewed the updated model and residual diagnostics (see @fig-model-diagnostics-outlier and @fig-residual-diagnostics-outlier). The plots did not suggest any significant changes in model fit. After observing the slight curvature in the relationship between heat index and percent deviation, we fit a model including the squared heat index as an additional term. While this parameter did improve model fit, we did not believe the improvement outweighed the cost in interpretability. We also acknowledge that the quadratic relationship appears to be more pronounced for the 20K and 50K race-walks and marathons, as evident in @fig-distance-plots(b). Given more time to complete our data set, we would have liked to have expanded our model to individual distances and improve our predictive performance. 
 
 ```{r include = FALSE}
-# Polynomial approach.
-testMod <- lm(percent_standing_avg ~ sex + competition + distance + heat_index, data = results.new)
+# Attempted polynomial approach.
+testMod <- lm(percent_standing_avg ~ sex + competition + distance + heat_index, 
+              data = results.new)
 
 summary(testMod)
 kable(anova(testMod))
+
+
 ```
 
 ## Results and Discussion
 
-Our final selected model includes sex, competition, distance, heat index, and the interaction between distance and heat index to predict the percent deviation between the top three average finishing times and the standing event record. In @tbl-summary(a), we see that while our initial ANOVA tests suggested statistically significant parameters, many of the individual categorical parameters are not significant. However, we will continue with this model and note its limitations.
+Our final selected model includes sex, competition, distance, heat index, and the interaction between distance and heat index to predict the percent deviation between the top three average finishing times and the standing event record. We may express our final linear model as:
+\begin{align*}
+Y_i & = \beta_0 + \beta_{11}U_{11i} + \beta_{21}U_{21i}+ \beta_{22}U_{22i}+ \beta_{23}U_{23i}+ \beta_{24}U_{24i}+ \beta_{25}U_{25i} \\
+& \quad \quad  + \beta_{31}U_{31i}+ \beta_{32}U_{32i}+ \beta_{33}U_{33i}+ \beta_{34}U_{34i}+ \beta_{35}U_{35i} \\
+& \quad \quad  +\beta_4X_{4i}+ \beta_{51}(U_{31i}\cdot X_{4i})+ \beta_{42}(U_{32i}\cdot X_{4i})+ \beta_{53}(U_{33i}\cdot X_{4i})+ \beta_{54}(U_{34i}\cdot X_{4i})+ \beta_{55}(U_{35i}\cdot X_{4i}) \\
+& \quad \quad  +e_i
+\end{align*}
+where $e_i \overset{iid}{\sim} N(0,\sigma^2)$ and we are using our notation established for the main effects full model.
+
+In @tbl-summary(a), we see that while our initial ANOVA tests suggested statistically significant parameters, many of the individual categorical parameters are not significant. However, we will continue with this model and note its limitations.
 ```{r}
 #| label: tbl-summary
+#| layout-nrow: 2
 #| tbl-cap: "Final Model Summaries"
 #| tbl-subcap: 
 #|    - "Coefficient Estimates"
 #|    - "Model Fit"
 
-kable(tidy(intMod.new), digits = 4,
-      col.names = c("", "Estimate", "SE", "T-Statistic", "P-Value"))%>% 
-  kable_styling(latex_options = "striped", full_width = FALSE)
+# Final model summary statistics.
+kable(tidy(intMod.new)[,c(1:3,5)], digits = 4,
+      col.names = c("", "Estimate", "SE", "P-Value"))%>% 
+  kable_styling(latex_options = c("striped", "HOLD_position"), full_width = FALSE)
 kable(glance(intMod.new)[,c("r.squared", "sigma", "df", "nobs")], digits = 4, 
       col.names = c(expression(R^2), expression(sigma), "DF", "N"))%>% 
-  kable_styling(latex_options = "striped", full_width = FALSE)
+  kable_styling(latex_options = c("striped", "HOLD_position"), full_width = FALSE)
+
+
 ```
 
 From our model, we may observe that females typically have a mean "top-three average" percent deviation 0.6902 percentage units greater than males, when holding distance, competition, and heat index constant. This indicates that females underperform--relative to the standing event record--by greater margins than males. 
@@ -483,7 +577,59 @@ Two of the most statistically significant parameters in our model include the 20
 
 Unfortunately, our current model is limited due to both the lack of certain race distances and the lack of depth in race results. It is possible that elite athletes (top three finishers) are not as affected by the weather as average runners and including mass participation results of Gold Label marathons could provide insight into general runner performance. We believe these limitations may also partially contribute to the low explanatory power of our model. In addition to polynomial regression, we may also explore generalized linear models or nonparametric regression to deal with the violation of the normality assumption. 
 
+\newpage
 
 ## Appendix
-```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```{r remove-outliers-plots1, fig.height = 3.5}
+#| layout-ncol: 2
+#| layout-nrow: 2
+#| label: fig-model-diagnostics-outlier
+#| fig-cap: "Model Diagnostics Outliers Removed"
+#| fig-subcap: 
+#|    - "Residuals vs. Fitted"
+#|    - "Residuals vs. Date"
+#|    - "Residuals vs. Heat Index"
+#|    - "Normal QQ-Plot"
+
+# Review residual diagnostics and model diagnostics.
+base = augment(intMod.new, results.new) %>% 
+  mutate(.ti = rstudent(intMod.new)) %>% 
+  rownames_to_column("case") %>% 
+  ggplot()
+base + geom_point(aes(x = .fitted, y = .ti))
+base + geom_point(aes(x = date, y = .ti)) 
+base + geom_point(aes(x = heat_index, y = .ti))
+qqnorm(rstudent(intMod.new))
+qqline(rstudent(intMod.new))
+
+
+```
+
+```{r remove-outliers-plots2, fig.height = 1.5}
+#| layout-nrow: 3
+#| label: fig-residual-diagnostics-outlier
+#| fig-cap: "Residual Diagnostics Outliers Removed"
+#| fig-subcap: 
+#|    - ""
+#|    - ""
+#|    - ""
+
+# Outlier removed interaction residual diagnostics.
+base + geom_point(aes(x = as.numeric(case), y = .hat)) +
+  geom_hline(data = tibble(threshold = c("2p/n", "3p/n"), 
+                           ref = c(2*17/dim(results.new)[1], 3*17/dim(results)[1])), 
+             aes(yintercept = ref, color = threshold)) +
+  labs(color = "Threshold", x = "Case ID", y = "Leverage")
+base + geom_point(aes(x = as.numeric(case), y = .cooksd)) +
+  labs(x = "Case ID", y = "Cook's Distance")
+base + geom_point(aes(x = as.numeric(case), y = .ti)) + 
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = qt(1 - (0.05/(2*dim(results.new)[1])), df = 629 - 1), 
+             linetype = "dotted") +
+  geom_hline(yintercept = qt((0.05/(2*dim(results.new)[1])), df = 629 - 1), 
+             linetype = "dotted") + 
+  ylim(-5,5) +
+  labs(x = "Case ID", y = "Studentized Residuals")
+
+
 ```
